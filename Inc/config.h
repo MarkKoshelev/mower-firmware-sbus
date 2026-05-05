@@ -466,11 +466,6 @@
   //#define CONTROL_IBUS          // use IBUS as input. Number indicates priority for dual-input.
   #define CONTROL_SBUS            // use SBUS as input. Number indicates priority for dual-input.
 
-  #define IBUS_NUM_CHANNELS       14      // total number of IBUS channels to receive, even if they are not used.
-  #define IBUS_LENGTH             0x20
-  #define IBUS_COMMAND            0x40
-  #define USART3_BAUD             115200
-
   // #define DUAL_INPUTS                     // ADC*(Primary) + iBUS(Auxiliary). Uncomment this to use Dual-inputs
   #ifdef DUAL_INPUTS
     #define FLASH_WRITE_KEY       0x1106  // Flash memory writing key. Change this key to ignore the input calibrations from the flash memory and use the ones in config.h
