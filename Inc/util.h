@@ -27,6 +27,9 @@
 // Rx Structures USART
 #if defined(CONTROL_SERIAL_USART2) || defined(CONTROL_SERIAL_USART3)
   #ifdef CONTROL_IBUS
+  #define IBUS_NUM_CHANNELS       14      // total number of IBUS channels to receive, even if they are not used.
+  #define IBUS_LENGTH             0x20
+  #define IBUS_COMMAND            0x40
     typedef struct{
       uint8_t  start;
       uint8_t  type; 
@@ -34,6 +37,38 @@
       uint8_t  checksuml;
       uint8_t  checksumh;
     } SerialCommand;
+  #elif defined(CONTROL_SBUS)
+/* 
+ SBUS Message: 25-byte packets
+ - header byte (0x0F), 
+ - 22 bytes of channel data (16 channels at 11 bits each), 
+ - flag byte
+ - end byte (0x00).
+*/
+  #define SBUS_NUM_CHANNELS       16    
+  #define SBUS_PAYLOAD_LEN        22
+  #define SBUS_HEADER_LEN          1
+  #define SBUS_FOOTER_LEN          1
+  /* SBUS message defs */
+  #define SBUS_HEADER           0x0F
+  #define SBUS_FOOTER           0x00
+  #define SBUS_FOOTER2          0x04
+  #define SBUS_CH17_MASK        0x01
+  #define SBUS_CH18_MASK        0x02
+  #define SBUS_LOST_FRAME_MASK  0x04
+  #define SBUS_FAILSAFE_MASK    0x08
+ typedef struct {
+      uint8_t  header;
+      uint8_t  payload[SBUS_PAYLOAD_LEN];
+	  uint8_t  flag;
+	  uint8_t  footer;
+    }  SerialCommand;
+ typedef struct {
+      uint8_t lost_frame;
+      uint8_t failsafe;
+      uint8_t ch17, ch18;
+      uint16_t channels[SBUS_NUM_CHANNELS];
+    }  SbusData;
   #else
     typedef struct{
       uint16_t  start;

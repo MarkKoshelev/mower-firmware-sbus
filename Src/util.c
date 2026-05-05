@@ -168,12 +168,69 @@ SerialSideboard Sideboard_R_raw;
 static uint32_t Sideboard_R_len = sizeof(Sideboard_R);
 #endif
 
+#if defined(CONTROL_SERIAL_USART3) || defined(CONTROL_SERIAL_USART2)
+  #ifdef CONTROL_SBUS
+
+void SbusRx_Parse(uint8_t *buf_,  SbusData *data_) {
+	/* Grab the channel data */
+	data_->channels[0]  = (uint16_t)(buf_[1] |
+										((buf_[2] << 8) & 0x07FF));
+	data_->channels[1]  = (uint16_t)((buf_[2] >> 3) |
+										((buf_[3] << 5) & 0x07FF));
+	data_->channels[2]  = (uint16_t)((buf_[3] >> 6) |
+										(buf_[4] << 2) |
+										((buf_[5] << 10) & 0x07FF));
+	data_->channels[3]  = (uint16_t)((buf_[5] >> 1) |
+										((buf_[6] << 7) & 0x07FF));
+	data_->channels[4]  = (uint16_t)((buf_[6] >> 4) |
+										((buf_[7] << 4) & 0x07FF));
+	data_->channels[5]  = (uint16_t)((buf_[7] >> 7) |
+										(buf_[8] << 1) |
+										((buf_[9] << 9) & 0x07FF));
+	data_->channels[6]  = (uint16_t)((buf_[9] >> 2) |
+										((buf_[10] << 6) & 0x07FF));
+	data_->channels[7]  = (uint16_t)((buf_[10] >> 5) |
+										((buf_[11] << 3) & 0x07FF));
+	data_->channels[8]  = (uint16_t)(buf_[12] |
+										((buf_[13] << 8) & 0x07FF));
+	data_->channels[9]  = (uint16_t)((buf_[13] >> 3) |
+										((buf_[14] << 5) & 0x07FF));
+	data_->channels[10] = (uint16_t)((buf_[14] >> 6) |
+										(buf_[15] << 2) |
+										((buf_[16] << 10) & 0x07FF));
+	data_->channels[11] = (uint16_t)((buf_[16] >> 1) |
+										((buf_[17] << 7) & 0x07FF));
+	data_->channels[12] = (uint16_t)((buf_[17] >> 4) |
+										((buf_[18] << 4) & 0x07FF));
+	data_->channels[13] = (uint16_t)((buf_[18] >> 7) |
+										(buf_[19] << 1) |
+										((buf_[20] << 9) & 0x07FF));
+	data_->channels[14] = (uint16_t)((buf_[20] >> 2) |
+										((buf_[21] << 6) & 0x07FF));
+	data_->channels[15] = (uint16_t)((buf_[21] >> 5) |
+										((buf_[22] << 3) & 0x07FF));
+	/* CH 17 */
+	data_->ch17 = buf_[23] & SBUS_CH17_MASK;
+	/* CH 18 */
+	data_->ch18 = buf_[23] & SBUS_CH18_MASK;
+	/* Grab the lost frame */
+	data_->lost_frame = buf_[23] & SBUS_LOST_FRAME_MASK;
+	/* Grab the failsafe */
+	data_->failsafe = buf_[23] & SBUS_FAILSAFE_MASK;
+  return;
+}
+  #endif //CONTROL_SBUS
+#endif
+
 #if defined(CONTROL_SERIAL_USART2)
 static SerialCommand commandL;
 static SerialCommand commandL_raw;
 static uint32_t commandL_len = sizeof(commandL);
   #ifdef CONTROL_IBUS
   static uint16_t ibusL_captured_value[IBUS_NUM_CHANNELS];
+  #endif
+  #ifdef CONTROL_SBUS
+  static SbusData sbusL_data;
   #endif
 #endif
 
@@ -183,6 +240,9 @@ static SerialCommand commandR_raw;
 static uint32_t commandR_len = sizeof(commandR);
   #ifdef CONTROL_IBUS
   static uint16_t ibusR_captured_value[IBUS_NUM_CHANNELS];
+  #endif
+  #ifdef CONTROL_SBUS
+  static SbusData sbusR_data;
   #endif
 #endif
 
@@ -861,7 +921,11 @@ void readInputRaw(void) {
         }
         input1[inIdx].raw = (ibusL_captured_value[0] - 500) * 2;
         input2[inIdx].raw = (ibusL_captured_value[1] - 500) * 2; 
-      #else
+      #elif defined(CONTROL_SBUS)
+        SbusRx_Parse((uint8_t*)&commandL, &sbusL_data);
+        input1[inIdx].raw = (sbusL_data.channels[0] - 1000 );
+        input2[inIdx].raw = (sbusL_data.channels[1] - 1000 ); 
+	  #else
         input1[inIdx].raw = commandL.steer;
         input2[inIdx].raw = commandL.speed;
       #endif
@@ -875,6 +939,10 @@ void readInputRaw(void) {
         }
         input1[inIdx].raw = (ibusR_captured_value[0] - 500) * 2;
         input2[inIdx].raw = (ibusR_captured_value[1] - 500) * 2; 
+      #elif defined(CONTROL_SBUS)
+        SbusRx_Parse((uint8_t*)&commandR, &sbusR_data);
+        input1[inIdx].raw = (sbusR_data.channels[0] - 1000);
+        input2[inIdx].raw = (sbusR_data.channels[1] - 1000); 
       #else
         input1[inIdx].raw = commandR.steer;
         input2[inIdx].raw = commandR.speed;
@@ -1290,6 +1358,22 @@ void usart_process_command(SerialCommand *command_in, SerialCommand *command_out
         }
       }
     }
+  #elif defined(CONTROL_SBUS)
+ //   if (command_in->header == SBUS_HEADER && (command_in->footer == SBUS_FOOTER || (command_in->footer & 0x0F) == SBUS_FOOTER2) {
+    if (command_in->header == SBUS_HEADER && command_in->footer == SBUS_FOOTER) {
+        *command_out = *command_in;
+        if (usart_idx == 2) {             // Sideboard USART2
+          #ifdef CONTROL_SERIAL_USART2
+          timeoutFlgSerial_L = 0;         // Clear timeout flag
+          timeoutCntSerial_L = 0;         // Reset timeout counter
+          #endif
+        } else if (usart_idx == 3) {      // Sideboard USART3
+          #ifdef CONTROL_SERIAL_USART3
+          timeoutFlgSerial_R = 0;         // Clear timeout flag
+          timeoutCntSerial_R = 0;         // Reset timeout counter
+          #endif
+        }
+    }
   #else
   uint16_t checksum;
   if (command_in->start == SERIAL_START_FRAME) {
@@ -1576,7 +1660,14 @@ void poweroff(void) {
 
 
 void poweroffPressCheck(void) {
-  #if !defined(VARIANT_HOVERBOARD) && !defined(VARIANT_TRANSPOTTER)
+   #if defined(VARIANT_PWM)
+    if (!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
+      poweroff();                                             // release power-latch
+    } 
+    return;
+   #endif
+
+   #if !defined(VARIANT_HOVERBOARD) && !defined(VARIANT_TRANSPOTTER)
     if(HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
       uint16_t cnt_press = 0;
       while(HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
@@ -1628,7 +1719,7 @@ void poweroffPressCheck(void) {
         saveValue_valid = 1;
       }
     }
-  #else
+  #else // VARIANT_HOVERBOARD
     if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
       enable = 0;                                             // disable motors
       while (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {}    // wait until button is released
